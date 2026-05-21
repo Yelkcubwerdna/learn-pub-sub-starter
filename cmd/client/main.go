@@ -42,6 +42,46 @@ func main() {
 		os.Exit(1)
 	}
 
+	state := gamelogic.NewGameState(username)
+
+outer:
+	for true {
+		inputs := gamelogic.GetInput()
+
+		switch inputs[0] {
+		case "spawn":
+			err := state.CommandSpawn(inputs)
+			if err != nil {
+				fmt.Println("Unable to complete spawn command: ", err)
+			}
+
+		case "move":
+			_, err := state.CommandMove(inputs)
+			if err != nil {
+				fmt.Println("Unable to complete move command: ", err)
+			} else {
+				fmt.Println("Move Command Successful")
+			}
+
+		case "status":
+			state.CommandStatus()
+
+		case "help":
+			gamelogic.PrintClientHelp()
+
+		case "spam":
+			fmt.Println("Spamming not allowed yet!")
+
+		case "quit":
+			gamelogic.PrintQuit()
+			break outer
+
+		default:
+			fmt.Println("Unknown command!")
+			continue
+		}
+	}
+
 	// Wait for Ctrl+C signal to exit
 
 	signalChan := make(chan os.Signal, 1)

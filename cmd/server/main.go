@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/signal"
 
+	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/routing"
 
@@ -31,7 +32,30 @@ func main() {
 		os.Exit(1)
 	}
 
-	pubsub.PublishJSON(rabbit_chan, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: true})
+	gamelogic.PrintServerHelp()
+
+outer:
+	for true {
+		inputs := gamelogic.GetInput()
+
+		if len(inputs) == 0 {
+			continue
+		}
+
+		switch inputs[0] {
+		case "pause":
+			fmt.Println("Sending pause message...")
+			pubsub.PublishJSON(rabbit_chan, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: true})
+		case "resume":
+			fmt.Println("Sending resume message...")
+			pubsub.PublishJSON(rabbit_chan, routing.ExchangePerilDirect, routing.PauseKey, routing.PlayingState{IsPaused: false})
+		case "quit":
+			fmt.Println("Exiting...")
+			break outer
+		default:
+			fmt.Println("Unknown command!")
+		}
+	}
 
 	signalChan := make(chan os.Signal, 1)
 	signal.Notify(signalChan, os.Interrupt)
