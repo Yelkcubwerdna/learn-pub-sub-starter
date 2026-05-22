@@ -65,3 +65,40 @@ func DeclareAndBind(
 
 	return newChan, newQueue, nil
 }
+
+func SubscribeJSON[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T),
+) error {
+
+	cha, _, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
+	if err != nil {
+		return fmt.Errorf("Queue does not exist/isn't bound to the exchange: ", err)
+	}
+
+	del, err := cha.Consume(queueName, "", false, false, false, false, nil)
+	if err != nil {
+		return fmt.Errorf("Unable to create deliveries channel: ", err)
+	}
+
+	go func() {
+		for mes := range del {
+			var unmarshalledMessage T
+			err = json.Unmarshal(mes.Body, &unmarshalledMessage)
+			if err != nil {
+				fmt.Printf("Couldn't unmarshal data: ", err)
+			}
+
+			handler(unmarshalledMessage)
+
+			mes.Ack(false)
+		}
+
+	}()
+
+	return nil
+}

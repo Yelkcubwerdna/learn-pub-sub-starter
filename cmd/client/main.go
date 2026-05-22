@@ -31,18 +31,16 @@ func main() {
 		fmt.Println("Error with username: ", err)
 	}
 
-	_, _, err = pubsub.DeclareAndBind(con,
+	state := gamelogic.NewGameState(username)
+
+	pubsub.SubscribeJSON(
+		con,
 		routing.ExchangePerilDirect,
-		fmt.Sprintf("%s.%s", routing.PauseKey, username),
+		fmt.Sprintf("pause.%s", username),
 		routing.PauseKey,
 		pubsub.Transient,
+		handlerPause(state),
 	)
-	if err != nil {
-		fmt.Println("Error during declare and bind: ", err)
-		os.Exit(1)
-	}
-
-	state := gamelogic.NewGameState(username)
 
 outer:
 	for true {

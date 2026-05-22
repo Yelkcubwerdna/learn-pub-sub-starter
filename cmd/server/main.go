@@ -26,6 +26,12 @@ func main() {
 
 	fmt.Println("Connected Successfully")
 
+	_, _, err = pubsub.DeclareAndBind(con, routing.ExchangePerilTopic, routing.GameLogSlug, fmt.Sprintf("%s.*", routing.GameLogSlug), pubsub.Durable)
+	if err != nil {
+		fmt.Printf("Unable to declar and bind: ", err)
+		os.Exit(1)
+	}
+
 	rabbit_chan, err := con.Channel()
 	if err != nil {
 		fmt.Print("Failed to open channel: ", err)
