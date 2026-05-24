@@ -26,6 +26,12 @@ func main() {
 
 	fmt.Println("Connected Successfully")
 
+	pub_chan, err := con.Channel()
+	if err != nil {
+		fmt.Println("Unable to open channel: ", err)
+		os.Exit(1)
+	}
+
 	username, err := gamelogic.ClientWelcome()
 	if err != nil {
 		fmt.Println("Error with username: ", err)
@@ -42,6 +48,15 @@ func main() {
 		handlerPause(state),
 	)
 
+	pubsub.SubscribeJSON(
+		con,
+		routing.ExchangePerilTopic,
+		fmt.Sprintf("army_moves.%s", username),
+		"army_moves.*",
+		pubsub.Transient,
+		handlerArmyMoves(state),
+	)
+
 outer:
 	for true {
 		inputs := gamelogic.GetInput()
@@ -54,11 +69,22 @@ outer:
 			}
 
 		case "move":
-			_, err := state.CommandMove(inputs)
+			mv, err := state.CommandMove(inputs)
 			if err != nil {
 				fmt.Println("Unable to complete move command: ", err)
 			} else {
 				fmt.Println("Move Command Successful")
+			}
+			err = pubsub.PublishJSON(
+				pub_chan,
+				routing.ExchangePerilTopic,
+				fmt.Sprintf("army_moves.%s", username),
+				mv,
+			)
+			if err != nil {
+				fmt.Println("Couldn't publish move message: ", err)
+			} else {
+				fmt.Println("Move published successfully.")
 			}
 
 		case "status":

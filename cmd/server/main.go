@@ -28,7 +28,7 @@ func main() {
 
 	_, _, err = pubsub.DeclareAndBind(con, routing.ExchangePerilTopic, routing.GameLogSlug, fmt.Sprintf("%s.*", routing.GameLogSlug), pubsub.Durable)
 	if err != nil {
-		fmt.Printf("Unable to declar and bind: ", err)
+		fmt.Printf("Unable to declare and bind: ", err)
 		os.Exit(1)
 	}
 
