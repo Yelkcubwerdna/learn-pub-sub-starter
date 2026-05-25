@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log"
 
 	amqp "github.com/rabbitmq/amqp091-go"
 )
@@ -13,6 +14,14 @@ type SimpleQueueType string
 const (
 	Durable   SimpleQueueType = "durable"
 	Transient SimpleQueueType = "transient"
+)
+
+type AckType string
+
+const (
+	Ack         AckType = "ack"
+	NackRequeue AckType = "nackrequeue"
+	NackDiscard AckType = "nackdiscard"
 )
 
 func PublishJSON[T any](ch *amqp.Channel, exchange, key string, val T) error {
@@ -41,13 +50,17 @@ func DeclareAndBind(
 		return &amqp.Channel{}, amqp.Queue{}, fmt.Errorf("Couldn't open new channel: ", err)
 	}
 
+	table := amqp.Table{
+		"x-dead-letter-exchange": "peril_dlx",
+	}
+
 	newQueue, err := newChan.QueueDeclare(
 		queueName,
 		queueType == Durable,
 		queueType == Transient,
 		queueType == Transient,
 		false,
-		nil,
+		table,
 	)
 	if err != nil {
 		return &amqp.Channel{}, amqp.Queue{}, fmt.Errorf("Couldn't open new queue: ", err)
@@ -72,7 +85,7 @@ func SubscribeJSON[T any](
 	queueName,
 	key string,
 	queueType SimpleQueueType,
-	handler func(T),
+	handler func(T) AckType,
 ) error {
 
 	cha, _, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
@@ -93,9 +106,19 @@ func SubscribeJSON[T any](
 				fmt.Printf("Couldn't unmarshal data: ", err)
 			}
 
-			handler(unmarshalledMessage)
+			ack := handler(unmarshalledMessage)
 
-			mes.Ack(false)
+			switch ack {
+			case Ack:
+				mes.Ack(false)
+				log.Println("Message acknowledged.\n> ")
+			case NackRequeue:
+				mes.Nack(false, true)
+				log.Println("Message not ackknowledged and requeued.\n> ")
+			case NackDiscard:
+				mes.Nack(false, false)
+				log.Println("Message not acknowledged and discarded.\n> ")
+			}
 		}
 
 	}()
