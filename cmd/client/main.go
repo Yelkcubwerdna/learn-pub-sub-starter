@@ -54,7 +54,16 @@ func main() {
 		fmt.Sprintf("army_moves.%s", username),
 		"army_moves.*",
 		pubsub.Transient,
-		handlerArmyMoves(state),
+		handlerArmyMoves(state, pub_chan),
+	)
+
+	pubsub.SubscribeJSON(
+		con,
+		routing.ExchangePerilTopic,
+		"war",
+		fmt.Sprintf("%s.%s", routing.WarRecognitionsPrefix, username),
+		pubsub.Durable,
+		handlerWarMessages(state),
 	)
 
 outer:
