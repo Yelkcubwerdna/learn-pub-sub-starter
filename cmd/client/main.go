@@ -63,7 +63,7 @@ func main() {
 		"war",
 		fmt.Sprintf("%s.%s", routing.WarRecognitionsPrefix, username),
 		pubsub.Durable,
-		handlerWarMessages(state),
+		handlerWarMessages(state, pub_chan),
 	)
 
 outer:

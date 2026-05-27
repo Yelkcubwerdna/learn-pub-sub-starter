@@ -1,7 +1,9 @@
 package pubsub
 
 import (
+	"bytes"
 	"context"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -30,10 +32,13 @@ func PublishJSON[T any](ch *amqp.Channel, exchange, key string, val T) error {
 		return fmt.Errorf("Unable to marshal val: %v", err)
 	}
 
-	ch.PublishWithContext(context.Background(), exchange, key, false, false, amqp.Publishing{
+	err = ch.PublishWithContext(context.Background(), exchange, key, false, false, amqp.Publishing{
 		ContentType: "application/json",
 		Body:        marshalVal,
 	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }
@@ -122,6 +127,28 @@ func SubscribeJSON[T any](
 		}
 
 	}()
+
+	return nil
+}
+
+func PublishGob[T any](ch *amqp.Channel, exchange, key string, val T) error {
+	var buffer bytes.Buffer
+
+	enc := gob.NewEncoder(&buffer)
+	err := enc.Encode(val)
+	if err != nil {
+		return err
+	}
+
+	encodeVal := buffer.Bytes()
+
+	err = ch.PublishWithContext(context.Background(), exchange, key, false, false, amqp.Publishing{
+		ContentType: "application/gob",
+		Body:        encodeVal,
+	})
+	if err != nil {
+		return err
+	}
 
 	return nil
 }

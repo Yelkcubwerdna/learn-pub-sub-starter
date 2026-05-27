@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"time"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
@@ -42,7 +43,7 @@ func handlerArmyMoves(gs *gamelogic.GameState, ch *amqp.Channel) func(gamelogic.
 				return pubsub.NackRequeue
 			}
 
-			return pubsub.NackRequeue
+			return pubsub.Ack
 		case gamelogic.MoveOutcomeSamePlayer:
 			return pubsub.NackDiscard
 		default:
@@ -51,11 +52,11 @@ func handlerArmyMoves(gs *gamelogic.GameState, ch *amqp.Channel) func(gamelogic.
 	}
 }
 
-func handlerWarMessages(gs *gamelogic.GameState) func(gamelogic.RecognitionOfWar) pubsub.AckType {
+func handlerWarMessages(gs *gamelogic.GameState, ch *amqp.Channel) func(gamelogic.RecognitionOfWar) pubsub.AckType {
 	return func(rw gamelogic.RecognitionOfWar) pubsub.AckType {
 		defer fmt.Print("> ")
 
-		outcome, _, _ := gs.HandleWar(rw)
+		outcome, winner, loser := gs.HandleWar(rw)
 
 		switch outcome {
 		case gamelogic.WarOutcomeNotInvolved:
@@ -63,14 +64,38 @@ func handlerWarMessages(gs *gamelogic.GameState) func(gamelogic.RecognitionOfWar
 		case gamelogic.WarOutcomeNoUnits:
 			return pubsub.NackDiscard
 		case gamelogic.WarOutcomeOpponentWon:
-			return pubsub.Ack
+			msg := fmt.Sprintf("%s won a war against %s", winner, loser)
+			return publishGameLog(msg, rw.Attacker.Username, ch)
+
 		case gamelogic.WarOutcomeYouWon:
-			return pubsub.Ack
+			msg := fmt.Sprintf("%s won a war against %s", winner, loser)
+			return publishGameLog(msg, rw.Attacker.Username, ch)
 		case gamelogic.WarOutcomeDraw:
-			return pubsub.Ack
+			msg := fmt.Sprintf("A war between %s and %s resulted in a draw", winner, loser)
+			return publishGameLog(msg, rw.Attacker.Username, ch)
 		default:
 			log.Print("Could not determine war outcome.")
 			return pubsub.NackDiscard
 		}
 	}
+}
+
+func publishGameLog(message, attacker string, ch *amqp.Channel) pubsub.AckType {
+	log := routing.GameLog{
+		CurrentTime: time.Now(),
+		Message:     message,
+		Username:    attacker,
+	}
+
+	err := pubsub.PublishGob(
+		ch,
+		routing.ExchangePerilTopic,
+		fmt.Sprintf("%s.%s", routing.GameLogSlug, attacker),
+		log,
+	)
+	if err != nil {
+		return pubsub.NackRequeue
+	}
+
+	return pubsub.Ack
 }
