@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"os/signal"
+	"strconv"
+	"time"
 
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/gamelogic"
 	"github.com/bootdotdev/learn-pub-sub-starter/internal/pubsub"
@@ -103,7 +105,30 @@ outer:
 			gamelogic.PrintClientHelp()
 
 		case "spam":
-			fmt.Println("Spamming not allowed yet!")
+			if len(inputs) < 2 {
+				fmt.Println("Commands needs a number of messages.\nFor example, 'spam 100'.")
+			} else {
+				howMany, err := strconv.Atoi(inputs[1])
+				if err != nil {
+					fmt.Println("Option after command must be an integer.\nFor example, 'spam 100'.")
+				} else {
+					for range howMany {
+						msg := gamelogic.GetMaliciousLog()
+						gl := routing.GameLog{
+							CurrentTime: time.Now(),
+							Message:     msg,
+							Username:    username,
+						}
+
+						pubsub.PublishGob(
+							pub_chan,
+							routing.ExchangePerilTopic,
+							fmt.Sprintf("%s.%s", routing.GameLogSlug, username),
+							gl,
+						)
+					}
+				}
+			}
 
 		case "quit":
 			gamelogic.PrintQuit()
