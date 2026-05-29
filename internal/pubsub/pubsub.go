@@ -84,6 +84,35 @@ func DeclareAndBind(
 	return newChan, newQueue, nil
 }
 
+func decodeJSON[T any](msg []byte) (T, error) {
+	var unmarshalledMessage T
+
+	err := json.Unmarshal(msg, &unmarshalledMessage)
+	if err != nil {
+		return unmarshalledMessage, err
+	}
+
+	return unmarshalledMessage, nil
+}
+
+func decodeGob[T any](msg []byte) (T, error) {
+	var buffer bytes.Buffer
+	var result T
+
+	_, err := buffer.Write(msg)
+	if err != nil {
+		return result, err
+	}
+
+	dec := gob.NewDecoder(&buffer)
+	err = dec.Decode(&result)
+	if err != nil {
+		return result, err
+	}
+
+	return result, nil
+}
+
 func SubscribeJSON[T any](
 	conn *amqp.Connection,
 	exchange,
@@ -91,6 +120,49 @@ func SubscribeJSON[T any](
 	key string,
 	queueType SimpleQueueType,
 	handler func(T) AckType,
+) error {
+	err := subscribe(
+		conn,
+		exchange,
+		queueName,
+		key,
+		queueType,
+		handler,
+		decodeJSON,
+	)
+
+	return err
+}
+
+func SubscribeGob[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T) AckType,
+) error {
+	err := subscribe(
+		conn,
+		exchange,
+		queueName,
+		key,
+		queueType,
+		handler,
+		decodeGob,
+	)
+
+	return err
+}
+
+func subscribe[T any](
+	conn *amqp.Connection,
+	exchange,
+	queueName,
+	key string,
+	queueType SimpleQueueType,
+	handler func(T) AckType,
+	unmarshaller func([]byte) (T, error),
 ) error {
 
 	cha, _, err := DeclareAndBind(conn, exchange, queueName, key, queueType)
@@ -105,13 +177,12 @@ func SubscribeJSON[T any](
 
 	go func() {
 		for mes := range del {
-			var unmarshalledMessage T
-			err = json.Unmarshal(mes.Body, &unmarshalledMessage)
+			result, err := unmarshaller(mes.Body)
 			if err != nil {
-				fmt.Printf("Couldn't unmarshal data: ", err)
+				fmt.Println("Couldn't unmarshal message: ", err)
 			}
 
-			ack := handler(unmarshalledMessage)
+			ack := handler(result)
 
 			switch ack {
 			case Ack:

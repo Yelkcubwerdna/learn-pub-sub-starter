@@ -38,6 +38,15 @@ func main() {
 		os.Exit(1)
 	}
 
+	pubsub.SubscribeGob(
+		con,
+		routing.ExchangePerilTopic,
+		routing.GameLogSlug,
+		fmt.Sprintf("%s.*", routing.GameLogSlug),
+		pubsub.Durable,
+		handlerGameLog(),
+	)
+
 	gamelogic.PrintServerHelp()
 
 outer:
